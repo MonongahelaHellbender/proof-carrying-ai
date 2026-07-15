@@ -50,12 +50,12 @@ SOURCED_PROMPT = """You answer a question using ONLY the SOURCES, and you back e
 Respond in EXACTLY this format and nothing else:
 
 ANSWER: <one or two sentences>
-FACT: <the fact you are stating> {sep} <the source id, e.g. S1> {sep} <a quote copied EXACTLY from that source>
-FACT: <the fact you are stating> {sep} <the source id, e.g. S1> {sep} <a quote copied EXACTLY from that source>
+FACT: <source id, e.g. S1> {sep} <a quote copied EXACTLY from that source>
+FACT: <source id, e.g. S1> {sep} <a quote copied EXACTLY from that source>
 
 Rules:
-- Each FACT line has exactly two "{sep}" separators.
-- The third field must be copied VERBATIM from the cited source — word for word.
+- Each FACT line has exactly one "{sep}" separator: the source id, then the quote.
+- The quote must be copied VERBATIM from the cited source — word for word.
   Do NOT paraphrase, summarize, or reword. Keep each quote short.
 - Only cite source ids that appear in SOURCES.
 - Write one FACT line for every fact you state in the ANSWER.
@@ -151,22 +151,31 @@ def parse_output(raw: str, default_kind: str = "arithmetic") -> ModelOutput:
             kind, body = "arithmetic", stripped[len("CLAIM:"):]
         elif upper.startswith("FACT:"):
             kind, body = "retrieval", stripped[len("FACT:"):]
-        elif stripped.count(SEP) == 2:
+        elif SEP in stripped:
             kind, body = default_kind, stripped
         else:
             continue
 
-        fields = [_unquote(f) for f in body.split(SEP)]
-        if len(fields) != 3:
-            continue
-        if kind == "retrieval":
-            claims.append(RawClaim(kind="retrieval", text=fields[0],
-                                   source_id=fields[1], quote=fields[2]))
-        else:
-            claims.append(RawClaim(kind="arithmetic", text=fields[0],
-                                   computation=fields[1], asserted_text=fields[2]))
+        claim = _make_claim(kind, [_unquote(f) for f in body.split(SEP)])
+        if claim is not None:
+            claims.append(claim)
 
     answer = " ".join(p for p in answer_parts if p).strip()
     if not answer and claims:
         answer = "; ".join(cl.text for cl in claims)
     return ModelOutput(answer=answer, claims=claims, raw=raw)
+
+
+def _make_claim(kind, fields):
+    """Build a RawClaim from delimited fields, tolerant of the arity a small model
+    actually emits: retrieval as (source, quote) OR (text, source, quote)."""
+    if kind == "retrieval":
+        if len(fields) == 3:
+            return RawClaim(kind="retrieval", text=fields[0], source_id=fields[1], quote=fields[2])
+        if len(fields) == 2:
+            return RawClaim(kind="retrieval", text=fields[1], source_id=fields[0], quote=fields[1])
+        return None
+    if len(fields) == 3:
+        return RawClaim(kind="arithmetic", text=fields[0],
+                        computation=fields[1], asserted_text=fields[2])
+    return None

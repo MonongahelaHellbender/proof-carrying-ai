@@ -35,6 +35,7 @@ checker *disposes*. No model output sits in the verdict path.
 python3 cli.py --demo          # arithmetic domain (Q1 costs)
 python3 cli.py --demo-facts    # retrieval domain (quotes vs. sources)
 python3 cli.py --demo-mixed    # one certificate spanning BOTH domains
+python3 cli.py --demo-agent    # a proof-carrying agent: a signed receipt per step + chain check
 ```
 
 Each asks the local model, writes `examples/demo_certificate.json`, and renders
@@ -111,6 +112,26 @@ Honest scope: this is **shared-key** authenticity — the verifier needs the sam
 and anyone holding it can forge. It is **not** public, anyone-can-verify signing;
 that needs a crypto dependency or a from-scratch Ed25519, on the expansion path.
 
+## Proof-carrying agents
+
+An agent takes several steps toward a goal; **each step emits its own signed
+certificate**, and later steps may use only numbers an earlier VERIFIED step
+established (a correct computation's result, or a number quoted verbatim from a
+real source). `pcai/agent.py` runs the trajectory and `verify_trajectory()`
+re-checks it: every step's receipt, plus the **chain** — no step may treat as an
+established fact any number a prior verified step did not actually establish.
+
+The `--demo-agent` trajectory: step 1 retrieves Acme's Q1 revenue (a verbatim quote
+→ establishes `4.2`); step 2 computes the annualized run-rate (`4.2 * 4 = 16.8`,
+where `4.2` traces to step 1's verified quote). Both steps signed; a trajectory
+digest chains their receipts and is itself signed.
+
+The point of proof-carrying *agents* over independent receipts: the chain check
+catches a broken trajectory that per-step verification passes. If step 1 fails to
+ground a number but step 2 uses it anyway, step 2's own certificate can still read
+VERIFIED — yet `verify_trajectory` flags that number as injected and the trajectory
+as not OK.
+
 ## Layout
 
 | File | Role |
@@ -119,15 +140,17 @@ that needs a crypto dependency or a from-scratch Ed25519, on the expansion path.
 | `pcai/llm.py` | the only model call (local Ollama); proposes `CLAIM:`/`FACT:` claims |
 | `pcai/certificate.py` | builds the certificate, recomputes verdicts, `verify()` re-checks both domains + signature |
 | `pcai/signing.py` | HMAC-SHA256 signing + key management (stdlib) |
+| `pcai/agent.py` | proof-carrying agent: signed receipt per step + trajectory chain verifier |
 | `pcai/verifier_template.html` | self-contained live verifier (both checkers reimplemented in JS) |
-| `cli.py` | run the loop end to end (`--demo`, `--demo-facts`, `--demo-mixed`, `--verify`, `--no-sign`) |
-| `tests/` | checker tests (22) + signing tests (7) |
+| `cli.py` | run the loop end to end (`--demo`, `--demo-facts`, `--demo-mixed`, `--demo-agent`, `--verify`, `--no-sign`) |
+| `tests/` | checker (22) + signing (7) + agent (3) tests |
 
 ## Status
 
-v0.4. Two checkable domains — **arithmetic** (operand grounding + recompute) and
+v0.5. Two checkable domains — **arithmetic** (operand grounding + recompute) and
 **retrieval** (verbatim quote vs. source) — in one certificate schema, one coverage
-denominator, one live verifier, and an **HMAC-signed** portable certificate. Zero
-third-party dependencies. Local models only (Ollama). Expansion path: public-key
-(Ed25519) signatures, runnable-code claims, Lean-checkable math, proof-carrying
-agents that attach a receipt to every step.
+denominator, one live verifier, an **HMAC-signed** portable certificate, and
+**proof-carrying agents** (a signed receipt per step + a trajectory chain verifier).
+Zero third-party dependencies. Local models only (Ollama). Expansion path: a
+trajectory UI, public-key (Ed25519) signatures, runnable-code claims, Lean-checkable
+math.
