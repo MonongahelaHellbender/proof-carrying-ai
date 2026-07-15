@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Proof-Carrying AI — Live Verifier</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --panel:#ffffff; --ink:#1a1d21; --muted:#5b6470;
+    --line:#e2e6ea; --mono:#0b1020;
+    --green:#1a7f37; --green-bg:#e8f5ec; --green-line:#8fd0a3;
+    --red:#c1121f; --red-bg:#fde8ea; --red-line:#f3a6ad;
+    --amber:#b3610e; --amber-bg:#fdf1e3; --amber-line:#f0c38a;
+    --grey:#6a7280; --grey-bg:#eef0f2; --grey-line:#cfd4da;
+    --accent:#3358d4;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0e1116; --panel:#161b22; --ink:#e6edf3; --muted:#9aa4b2;
+      --line:#2a313a; --mono:#c9d1d9;
+      --green:#3fb950; --green-bg:#12261a; --green-line:#238636;
+      --red:#f85149; --red-bg:#2b1315; --red-line:#8b2c2c;
+      --amber:#e3a008; --amber-bg:#2a1f0a; --amber-line:#8a6d1f;
+      --grey:#8b949e; --grey-bg:#1b2027; --grey-line:#30363d;
+      --accent:#6b8afd;
+    }
+  }
+  :root[data-theme="dark"]{
+      --bg:#0e1116; --panel:#161b22; --ink:#e6edf3; --muted:#9aa4b2;
+      --line:#2a313a; --mono:#c9d1d9;
+      --green:#3fb950; --green-bg:#12261a; --green-line:#238636;
+      --red:#f85149; --red-bg:#2b1315; --red-line:#8b2c2c;
+      --amber:#e3a008; --amber-bg:#2a1f0a; --amber-line:#8a6d1f;
+      --grey:#8b949e; --grey-bg:#1b2027; --grey-line:#30363d;
+      --accent:#6b8afd;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:900px;margin:0 auto;padding:28px 20px 64px}
+  header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+  h1{font-size:22px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:14px;max-width:680px}
+  .toggle{border:1px solid var(--line);background:var(--panel);color:var(--ink);
+    border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;margin-top:18px}
+  .qa .q{font-weight:600}
+  .qa .a{margin-top:6px;color:var(--ink)}
+  .facts{font-family:ui-monospace,Menlo,monospace;font-size:13px;color:var(--ink);margin-top:6px}
+  .label{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .cov{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
+  .pill{font-size:13px;padding:4px 10px;border-radius:999px;border:1px solid var(--line)}
+  .pill.v{color:var(--green);background:var(--green-bg);border-color:var(--green-line)}
+  .pill.f{color:var(--red);background:var(--red-bg);border-color:var(--red-line)}
+  .pill.g{color:var(--amber);background:var(--amber-bg);border-color:var(--amber-line)}
+  .pill.u{color:var(--grey);background:var(--grey-bg);border-color:var(--grey-line)}
+  .bar{height:10px;border-radius:6px;overflow:hidden;display:flex;margin-top:10px;border:1px solid var(--line)}
+  .bar > i{display:block;height:100%}
+  .bar .bv{background:var(--green)} .bar .bf{background:var(--red)}
+  .bar .bg{background:var(--amber)} .bar .bu{background:var(--grey)}
+  .ratio{font-size:13px;color:var(--muted);margin-top:6px}
+  .source-row{display:flex;gap:10px;margin-top:8px;align-items:baseline}
+  .sid{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--accent);
+    border:1px solid var(--line);border-radius:5px;padding:1px 6px;flex:none}
+  .stext{font-size:13px;color:var(--ink)}
+  .kindtag{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--muted);
+    border:1px solid var(--line);border-radius:5px;padding:1px 6px;margin-left:8px}
+  .claim{border:1px solid var(--line);border-left-width:4px;border-radius:10px;padding:14px 16px;margin-top:12px;background:var(--panel)}
+  .claim.v{border-left-color:var(--green)} .claim.f{border-left-color:var(--red)}
+  .claim.g{border-left-color:var(--amber)} .claim.u{border-left-color:var(--grey)}
+  .claim .top{display:flex;justify-content:space-between;gap:12px;align-items:center}
+  .badge{font-size:12px;font-weight:700;letter-spacing:.04em;padding:4px 10px;border-radius:6px;white-space:nowrap}
+  .badge.v{color:var(--green);background:var(--green-bg);border:1px solid var(--green-line)}
+  .badge.f{color:var(--red);background:var(--red-bg);border:1px solid var(--red-line)}
+  .badge.g{color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-line)}
+  .badge.u{color:var(--grey);background:var(--grey-bg);border:1px solid var(--grey-line)}
+  .ctext{font-weight:600}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
+  input.expr-input,input.asserted,input.quote-input,input.source-input{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--mono)}
+  input.expr-input{width:220px} input.asserted{width:120px}
+  input.quote-input{width:340px;max-width:100%} input.source-input{width:70px}
+  .detail{font-size:13px;color:var(--muted);margin-top:8px;font-family:ui-monospace,Menlo,monospace}
+  .grounding{font-size:13px;color:var(--muted);margin-top:5px;font-family:ui-monospace,Menlo,monospace}
+  .disagree{margin-top:8px;font-size:13px;color:var(--amber);font-weight:600}
+  .note{font-size:13px;color:var(--muted);margin-top:6px}
+  .honesty{font-size:13px;color:var(--ink);background:var(--bg);border:1px dashed var(--line);border-radius:10px;padding:12px 14px;margin-top:8px}
+  .digest{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--muted);word-break:break-all;margin-top:6px}
+  textarea{width:100%;min-height:120px;font-family:ui-monospace,Menlo,monospace;font-size:12px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px}
+  button.act{border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:13px;margin-top:10px}
+  button.ghost{border:1px solid var(--line);background:transparent;color:var(--ink);border-radius:8px;padding:5px 10px;cursor:pointer;font-size:12px}
+  code.inline{font-family:ui-monospace,Menlo,monospace;background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
+  .foot{color:var(--muted);font-size:12px;margin-top:26px;text-align:center}
+  .empty{color:var(--muted);font-style:italic}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Proof-Carrying AI &mdash; Live Verifier</h1>
+      <div class="sub">This page recomputes every verdict <b>in your browser</b> — grounded
+        arithmetic <i>and</i> verbatim quotes against their sources — from the raw facts,
+        expressions, and corpus. It does <b>not</b> trust the verdicts stored in the certificate.
+        Edit any field and watch the badges re-check.</div>
+    </div>
+    <button class="toggle" id="themeBtn">Toggle theme</button>
+  </header>
+
+  <div id="app"></div>
+
+  <div class="panel">
+    <div class="label">Verify another certificate</div>
+    <div class="note">Paste a certificate JSON and re-check it here. Nothing is trusted; everything is recomputed.</div>
+    <textarea id="paste" placeholder="Paste certificate JSON..."></textarea>
+    <button class="act" id="verifyPaste">Verify pasted certificate</button>
+  </div>
+
+  <div class="foot">Proof-Carrying AI v0.4 &middot; deterministic grounded + verbatim checkers, signed receipts, no model in the verdict path</div>
+</div>
+
+<script>
+const EMBEDDED_CERT = null; //__CERT__
+
+// ---- tiny DOM helper (no innerHTML: everything goes through textContent) ----
+function E(tag, cls, text){
+  const e = document.createElement(tag);
+  if(cls) e.className = cls;
+  if(text !== undefined && text !== null) e.textContent = text;
+  return e;
+}
+
+// ---- arithmetic engine (recursive descent, no dynamic code). Returns the
+//      value AND the operand literals it saw, so grounding can reuse them. ----
+function computeExpr(expr){
+  const s = String(expr); let i = 0; const ops = [];
+  function peek(){ while(i < s.length && /\s/.test(s[i])) i++; return s[i]; }
+  function pExpr(){
+    let v = pTerm();
+    for(;;){ const c = peek();
+      if(c === '+'){ i++; v += pTerm(); }
+      else if(c === '-'){ i++; v -= pTerm(); }
+      else break; }
+    return v;
+  }
+  function pTerm(){
+    let v = pFactor();
+    for(;;){ const c = peek();
+      if(c === '*'){ i++; v *= pFactor(); }
+      else if(c === '/'){ if(s[i+1] === '/'){ i += 2; v = Math.floor(v / pFactor()); }
+                          else { i++; v /= pFactor(); } }
+      else if(c === '%'){ i++; v %= pFactor(); }
+      else break; }
+    return v;
+  }
+  function pFactor(){
+    const c = peek();
+    if(c === '+'){ i++; return pFactor(); }
+    if(c === '-'){ i++; return -pFactor(); }
+    if(c === '('){ i++; const v = pExpr(); if(peek() !== ')') throw new Error('missing )'); i++; return v; }
+    return pNum();
+  }
+  function pNum(){
+    peek(); const st = i;
+    while(i < s.length && /[0-9.]/.test(s[i])) i++;
+    if(st === i) throw new Error('expected a number');
+    const n = parseFloat(s.slice(st, i)); ops.push(n); return n;
+  }
+  const val = pExpr();
+  if(peek() !== undefined) throw new Error('unexpected: ' + s.slice(i));
+  return {value: val, ops: ops};
+}
+
+function parseAsserted(text){
+  if(text === null || text === undefined) return null;
+  const cleaned = String(text).replace(/[$,%]/g, '').trim();
+  if(cleaned === '') return null;
+  const n = Number(cleaned);
+  return Number.isNaN(n) ? null : n;
+}
+function extractNumbers(text){
+  const re = /(?<![\w.])\d[\d,]*(?:\.\d+)?/g;
+  const out = []; const s = String(text || '');
+  for(const m of s.matchAll(re)){ const v = parseAsserted(m[0]); if(v !== null) out.push(v); }
+  return out;
+}
+function numbersMatch(a, b){ return Math.abs(a - b) <= Math.max(1e-9, 1e-6 * Math.max(Math.abs(a), Math.abs(b))); }
+function member(x, pool){ return pool.some(p => numbersMatch(x, p)); }
+function fmt(x){ return Number.isInteger(x) ? String(x) : (Math.round(x*1e6)/1e6).toString(); }
+function normalize(s){ return String(s || '').replace(/\s+/g, ' ').trim().toLowerCase(); }
+
+function detailText(verdict, comp, rec, a, ungrounded){
+  if(verdict === 'VERIFIED') return comp.trim() + ' = ' + fmt(rec) + '  (operands grounded)';
+  if(verdict === 'FAILED')   return 'asserted ' + fmt(a) + ', but ' + comp.trim() + ' = ' + fmt(rec) + '  (operands grounded)';
+  if(verdict === 'UNGROUNDED') return 'operand(s) not in facts or prior results: ' +
+      ungrounded.map(fmt).join(', ') + '   [' + comp.trim() + ' = ' + fmt(rec) + ']';
+  return comp.trim() + ' = ' + fmt(rec) + '  (grounded, but no asserted value to compare)';
+}
+function groundingText(grounded, ops, ungrounded){
+  const shown = ops.length ? ops.map(fmt).join(', ') : '(none)';
+  return grounded ? 'operands ' + shown + ' — all trace to a fact or a prior result'
+                  : 'operands ' + shown + '; ungrounded: ' + ungrounded.map(fmt).join(', ');
+}
+
+// arithmetic claim check
+function checkOne(comp, assertedText, available){
+  if(!comp || !String(comp).trim())
+    return {verdict:'UNCHECKABLE', detail:'no computation was provided',
+            grounding:'no computation to ground', grounded:false, recomputed:null};
+  let rec, ops;
+  try { const r = computeExpr(comp); rec = r.value; ops = r.ops; }
+  catch(e){ return {verdict:'UNCHECKABLE', detail:'expression not checkable: ' + e.message,
+                    grounding:'no computation to ground', grounded:false, recomputed:null}; }
+  const ungrounded = ops.filter(op => !member(op, available));
+  const grounded = ungrounded.length === 0;
+  const a = parseAsserted(assertedText);
+  const arithmetic = a === null ? 'NA' : (numbersMatch(rec, a) ? 'MATCH' : 'MISMATCH');
+  let verdict;
+  if(!grounded) verdict = 'UNGROUNDED';
+  else if(arithmetic === 'MATCH') verdict = 'VERIFIED';
+  else if(arithmetic === 'MISMATCH') verdict = 'FAILED';
+  else verdict = 'UNCHECKABLE';
+  return {verdict, recomputed:rec, grounded,
+          detail: detailText(verdict, comp, rec, a, ungrounded),
+          grounding: groundingText(grounded, ops, ungrounded)};
+}
+
+// retrieval claim check — quote must appear verbatim in the cited source
+function checkQuote(quote, sid, smap){
+  if(!quote || !String(quote).trim() || !sid || !String(sid).trim())
+    return {verdict:'UNCHECKABLE', detail:'no quote or source to check'};
+  const key = String(sid).trim().toUpperCase();
+  if(!(key in smap))
+    return {verdict:'UNGROUNDED', detail:'cited source ' + sid + ' is not in the provided corpus'};
+  const found = normalize(smap[key]).includes(normalize(quote));
+  return found ? {verdict:'VERIFIED', detail:'quote found verbatim in source ' + sid}
+               : {verdict:'FAILED', detail:'quote NOT found in source ' + sid + ' (fabricated or misquoted)'};
+}
+
+const CLS = {VERIFIED:'v', FAILED:'f', UNGROUNDED:'g', UNCHECKABLE:'u'};
+let CERT = EMBEDDED_CERT;
+
+function render(cert){
+  const app = document.getElementById('app');
+  if(!cert){ app.replaceChildren(E('div', 'panel empty', 'No certificate loaded. Paste one below.')); return; }
+
+  const cov = E('div', 'panel');
+  const qa = E('div', 'qa');
+  qa.append(E('div', 'label', 'Question'), E('div', 'q', cert.question || ''),
+            E('div', 'label', 'Answer'), E('div', 'a', cert.answer || ''));
+  qa.querySelector('.label:nth-child(3)').style.marginTop = '10px';
+  cov.append(qa);
+  if(cert.facts){
+    const fh = E('div', 'label', 'Facts (numbers the checker grounds against)'); fh.style.marginTop = '10px';
+    cov.append(fh, E('div', 'facts', cert.facts));
+  }
+  const covHead = E('div', 'label', 'Coverage (recomputed live)'); covHead.style.marginTop = '14px';
+  const covRow = E('div', 'cov'); covRow.id = 'cov';
+  const bar = E('div', 'bar'); bar.id = 'bar';
+  bar.append(E('i', 'bv'), E('i', 'bf'), E('i', 'bg'), E('i', 'bu'));
+  const ratio = E('div', 'ratio'); ratio.id = 'ratio';
+  cov.append(covHead, covRow, bar, ratio);
+
+  const parts = [cov];
+
+  if((cert.sources || []).length){
+    const sp = E('div', 'panel');
+    sp.append(E('div', 'label', 'Sources (the corpus quotes are checked against)'));
+    cert.sources.forEach(s => {
+      const sr = E('div', 'source-row');
+      sr.append(E('span', 'sid', s.id), E('span', 'stext', s.text));
+      sp.append(sr);
+    });
+    parts.push(sp);
+  }
+
+  const claims = E('div');
+  (cert.claims || []).forEach((c, idx) => claims.append(claimEl(c, idx)));
+  parts.push(claims);
+
+  const meta = E('div', 'panel');
+  meta.append(E('div', 'label', 'Honesty note (travels inside the certificate)'),
+              E('div', 'honesty', cert.honesty_note || ''));
+  const mh = E('div', 'label', 'Model & digest'); mh.style.marginTop = '14px';
+  const note = E('div', 'note');
+  note.append('Model: ', E('b', null, cert.model || 'unknown'),
+    ' · the digest binds the certificate body to a hash; it is an integrity check (verified by the Python ',
+    E('code', 'inline', '--verify'), ' tool), not a cryptographic signature.');
+  meta.append(mh, note, E('div', 'digest', cert.digest || '(no digest)'));
+  if(cert.signature){
+    const sh = E('div', 'label', 'Signature'); sh.style.marginTop = '14px';
+    const sn = E('div', 'note');
+    sn.append('Scheme ', E('b', null, cert.signature_scheme || 'hmac-sha256'), ', key ',
+      E('b', null, cert.key_id || '?'),
+      ' — shared-key authenticity. This page recomputes the verdicts; checking the signature itself needs the key and is done by the Python ',
+      E('code', 'inline', '--verify'), ' tool.');
+    meta.append(sh, sn, E('div', 'digest', cert.signature));
+  }
+  parts.push(meta);
+
+  app.replaceChildren(...parts);
+  computeAll();
+}
+
+function claimEl(claim, idx){
+  return claim.kind === 'retrieval' ? claimElQuote(claim, idx) : claimElArithmetic(claim, idx);
+}
+
+function _shell(claim, idx, kind){
+  const el = E('div', 'claim'); el.dataset.idx = idx; el.dataset.kind = kind;
+  const top = E('div', 'top');
+  const ct = E('div', 'ctext'); ct.append(claim.text || '(claim)', E('span', 'kindtag', kind));
+  top.append(ct, E('div', 'badge', '...'));
+  el.append(top);
+  return el;
+}
+
+function claimElArithmetic(claim, idx){
+  const el = _shell(claim, idx, 'arithmetic');
+  const row = E('div', 'row');
+  const expr = E('input', 'expr-input'); expr.type = 'text';
+  expr.value = claim.computation || ''; expr.dataset.original = expr.value;
+  const asserted = E('input', 'asserted'); asserted.type = 'text';
+  asserted.value = claim.asserted_value != null ? claim.asserted_value : ''; asserted.dataset.original = asserted.value;
+  row.append(E('span', 'label', 'computation'), expr, E('span', 'label', 'asserted'), asserted);
+
+  const detail = E('div', 'detail');
+  const grounding = E('div', 'grounding');
+  const disagree = E('div', 'disagree'); disagree.style.display = 'none';
+  const btnRow = E('div', 'row');
+  const breakBtn = E('button', 'ghost', 'force a wrong value');
+  const resetBtn = E('button', 'ghost', 'reset');
+  btnRow.append(breakBtn, resetBtn);
+  el.append(row, detail, grounding, disagree, btnRow);
+
+  expr.addEventListener('input', computeAll);
+  asserted.addEventListener('input', computeAll);
+  breakBtn.addEventListener('click', () => {
+    let v = 0; try { v = computeExpr(expr.value).value; } catch(e){}
+    asserted.value = String((typeof v === 'number' ? v : 0) + 1); computeAll();
+  });
+  resetBtn.addEventListener('click', () => {
+    expr.value = expr.dataset.original; asserted.value = asserted.dataset.original; computeAll();
+  });
+  return el;
+}
+
+function claimElQuote(claim, idx){
+  const el = _shell(claim, idx, 'retrieval');
+  const row = E('div', 'row');
+  const src = E('input', 'source-input'); src.type = 'text';
+  src.value = claim.source_id || ''; src.dataset.original = src.value;
+  const quote = E('input', 'quote-input'); quote.type = 'text';
+  quote.value = claim.quote || ''; quote.dataset.original = quote.value;
+  row.append(E('span', 'label', 'source'), src, E('span', 'label', 'quote'), quote);
+
+  const detail = E('div', 'detail');
+  const disagree = E('div', 'disagree'); disagree.style.display = 'none';
+  const btnRow = E('div', 'row');
+  const breakBtn = E('button', 'ghost', 'misquote it');
+  const resetBtn = E('button', 'ghost', 'reset');
+  btnRow.append(breakBtn, resetBtn);
+  el.append(row, detail, disagree, btnRow);
+
+  src.addEventListener('input', computeAll);
+  quote.addEventListener('input', computeAll);
+  breakBtn.addEventListener('click', () => { quote.value = quote.value + ' XYZZY'; computeAll(); });
+  resetBtn.addEventListener('click', () => {
+    src.value = src.dataset.original; quote.value = quote.dataset.original; computeAll();
+  });
+  return el;
+}
+
+// Re-check the WHOLE certificate in order. Arithmetic threads operand
+// provenance; retrieval checks quotes against the corpus. Both here, live.
+function computeAll(){
+  if(!CERT) return;
+  const available = extractNumbers(CERT.facts || '');
+  const smap = {};
+  (CERT.sources || []).forEach(s => { if(s && s.id) smap[String(s.id).trim().toUpperCase()] = s.text || ''; });
+  const verdicts = [];
+  document.querySelectorAll('.claim').forEach(el => {
+    const idx = Number(el.dataset.idx);
+    const claim = (CERT.claims || [])[idx];
+    let res;
+    if(el.dataset.kind === 'retrieval'){
+      res = checkQuote(el.querySelector('.quote-input').value, el.querySelector('.source-input').value, smap);
+    } else {
+      res = checkOne(el.querySelector('.expr-input').value, el.querySelector('.asserted').value, available);
+      if(res.grounded && typeof res.recomputed === 'number' && isFinite(res.recomputed))
+        available.push(res.recomputed);
+    }
+    applyResult(el, res, claim);
+    verdicts.push(res.verdict);
+  });
+  updateCoverage(verdicts);
+}
+
+function applyResult(el, res, claim){
+  const cls = CLS[res.verdict] || 'u';
+  el.className = 'claim ' + cls;
+  const badge = el.querySelector('.badge');
+  badge.className = 'badge ' + cls; badge.textContent = res.verdict;
+  el.querySelector('.detail').textContent = res.detail;
+  const g = el.querySelector('.grounding');
+  if(g) g.textContent = res.grounding || '';
+
+  const dis = el.querySelector('.disagree');
+  const stored = claim && claim.verdict_at_build;
+  if(stored && stored !== res.verdict){
+    dis.style.display = '';
+    dis.textContent = 'Certificate recorded ' + stored + ' at build, but independent re-check says ' +
+      res.verdict + '. The re-check wins — verdicts are never trusted from the file.';
+  } else { dis.style.display = 'none'; }
+}
+
+function updateCoverage(verdicts){
+  const counts = {VERIFIED:0, FAILED:0, UNGROUNDED:0, UNCHECKABLE:0};
+  verdicts.forEach(v => { if(counts[v] !== undefined) counts[v]++; });
+  const total = verdicts.length;
+  const checkable = counts.VERIFIED + counts.FAILED + counts.UNGROUNDED;
+  const cov = document.getElementById('cov');
+  if(!cov) return;
+  cov.replaceChildren(
+    E('span', 'pill v', counts.VERIFIED + ' verified'),
+    E('span', 'pill f', counts.FAILED + ' failed'),
+    E('span', 'pill g', counts.UNGROUNDED + ' ungrounded'),
+    E('span', 'pill u', counts.UNCHECKABLE + ' uncheckable'));
+  const pct = n => (total ? (100*n/total) : 0) + '%';
+  const bar = document.getElementById('bar');
+  bar.children[0].style.width = pct(counts.VERIFIED);
+  bar.children[1].style.width = pct(counts.FAILED);
+  bar.children[2].style.width = pct(counts.UNGROUNDED);
+  bar.children[3].style.width = pct(counts.UNCHECKABLE);
+  const ratio = total ? (checkable/total).toFixed(3) : '0.000';
+  document.getElementById('ratio').textContent =
+    'coverage_ratio = ' + ratio + '  (' + checkable + ' of ' + total + ' claims were checkable)';
+}
+
+document.getElementById('themeBtn').addEventListener('click', () => {
+  const root = document.documentElement;
+  const dark = getComputedStyle(root).getPropertyValue('--bg').trim().startsWith('#0');
+  root.setAttribute('data-theme', dark ? 'light' : 'dark');
+});
+document.getElementById('verifyPaste').addEventListener('click', () => {
+  try { CERT = JSON.parse(document.getElementById('paste').value); render(CERT); }
+  catch(e){ alert('Could not parse JSON: ' + e.message); }
+});
+
+render(CERT);
+</script>
+</body>
+</html>

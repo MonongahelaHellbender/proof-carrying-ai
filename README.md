@@ -1,0 +1,133 @@
+# Proof-Carrying AI
+
+An answer that ships a **checkable receipt**. A local LLM answers a question and,
+per numeric claim, states the exact arithmetic behind the number. A deterministic
+checker **recomputes** every claim. A live verifier UI lights each claim
+**green / red / grey** and shows a coverage denominator — how much of the answer
+was checkable at all.
+
+The point: an answer you don't have to take on faith. The verifier never trusts
+the model's self-report; it re-derives every verdict itself.
+
+## The loop
+
+```mermaid
+flowchart LR
+    Q[Question + Facts] --> M[Local LLM<br/>llama3.2:3b]
+    M -->|answer + per-claim<br/>computation & value| P[Parse claims]
+    P --> C[Deterministic checker<br/>ground operands + recompute arithmetic]
+    C --> CERT[Certificate JSON<br/>+ sha256 digest]
+    CERT --> V[Live verifier<br/>re-checks in browser]
+    V --> G[green VERIFIED]
+    V --> R[red FAILED]
+    V --> A[amber UNGROUNDED]
+    V --> Y[grey UNCHECKABLE]
+    style C fill:#1a7f37,color:#fff
+    style V fill:#3358d4,color:#fff
+```
+
+The model is the **only** place a model is involved. It *proposes* claims; the
+checker *disposes*. No model output sits in the verdict path.
+
+## Run it
+
+```
+python3 cli.py --demo          # arithmetic domain (Q1 costs)
+python3 cli.py --demo-facts    # retrieval domain (quotes vs. sources)
+python3 cli.py --demo-mixed    # one certificate spanning BOTH domains
+```
+
+Each asks the local model, writes `examples/demo_certificate.json`, and renders
+`verify.html`. Open `verify.html` in a browser and edit any field — badges re-check
+live, because the browser is an *independent* second verifier (both checkers are
+reimplemented in JS, no dynamic evaluation).
+
+Re-check any certificate from the terminal (no model involved):
+
+```
+python3 cli.py --verify examples/demo_certificate.json
+```
+
+Run the checker tests:
+
+```
+python3 tests/test_checker.py
+```
+
+## Two checkable domains, one schema
+
+Claims come in two kinds, checked by two model-free checkers, sharing one
+certificate, one coverage denominator, and one UI:
+
+- **arithmetic** (`CLAIM:`) — operand grounding + recompute (below).
+- **retrieval** (`FACT:`) — the claim carries a quoted span and a source id; the
+  checker verifies the span appears **verbatim** (whitespace- and case-normalized)
+  in the cited source. VERIFIED = quote is in the source; FAILED = source exists but
+  the quote is not in it (fabricated/misquoted); UNGROUNDED = the cited source id is
+  not in the corpus (invented source); UNCHECKABLE = no quote/source. This grounds
+  the quote to the source, not the source to reality — the same discipline as
+  agent-trace-shield.
+
+## What an arithmetic verdict means (and does not)
+
+Each arithmetic claim is checked on two independent axes: **grounding** (does every
+operand trace to a given fact or a value a prior grounded claim derived?) and
+**arithmetic** (does the asserted number equal the recompute?).
+
+- **VERIFIED (green):** operands grounded **and** asserted equals the recompute. It is
+  grounded to the facts and the computation — **not** proven true about the world.
+- **FAILED (red):** operands grounded, but the asserted number does not match the recompute.
+- **UNGROUNDED (amber):** an operand is not in the facts and was not derived by a prior
+  claim — the model invented a number. Caught even when its arithmetic is internally correct.
+- **UNCHECKABLE (grey):** there was no computation to check. **Counted**, never hidden.
+  `coverage_ratio = checkable / total` (checkable = verified + failed + ungrounded)
+  reports how much of the answer was checkable at all. High verified count + low
+  coverage = a weak certificate.
+
+**Grounding is a provenance chain.** An operand is grounded if it appears in the facts
+OR equals a value an earlier grounded claim derived — and the value threaded forward is
+the one the *checker recomputed*, never the one the model asserted. So a fabricated
+number stays ungrounded even if the model reuses it downstream. Known v0.2 limits:
+ambient constants not in the facts (e.g. `100` for a percent, `12` for months) are
+flagged ungrounded on purpose (unknown provenance = flagged, not assumed), and claims
+are checked in emitted order (a claim that references a later claim's result is not
+grounded by it).
+
+## Integrity and authenticity
+
+The `digest` is a sha256 over the certificate's signable content: an **integrity**
+check. On its own it is forgeable — anyone can edit the content and recompute the
+digest to match.
+
+The `signature` (when present) is an **HMAC-SHA256** over the digest, keyed by a local
+secret (`~/.pcai/signing.key`, created on first run, 0600). It proves the certificate
+was made by a holder of the key. `python3 cli.py --verify cert.json` reports
+`digest_ok` and `signature: valid | invalid | present-but-no-key | unsigned`. A
+forger who tampers content and recomputes the digest still gets `signature: invalid`,
+because they cannot HMAC it without the key (and the tampered claim also flips its
+verdict on re-check).
+
+Honest scope: this is **shared-key** authenticity — the verifier needs the same secret,
+and anyone holding it can forge. It is **not** public, anyone-can-verify signing;
+that needs a crypto dependency or a from-scratch Ed25519, on the expansion path.
+
+## Layout
+
+| File | Role |
+|------|------|
+| `pcai/checker.py` | deterministic checkers (arithmetic grounding + verbatim quotes) — the trust root |
+| `pcai/llm.py` | the only model call (local Ollama); proposes `CLAIM:`/`FACT:` claims |
+| `pcai/certificate.py` | builds the certificate, recomputes verdicts, `verify()` re-checks both domains + signature |
+| `pcai/signing.py` | HMAC-SHA256 signing + key management (stdlib) |
+| `pcai/verifier_template.html` | self-contained live verifier (both checkers reimplemented in JS) |
+| `cli.py` | run the loop end to end (`--demo`, `--demo-facts`, `--demo-mixed`, `--verify`, `--no-sign`) |
+| `tests/` | checker tests (22) + signing tests (7) |
+
+## Status
+
+v0.4. Two checkable domains — **arithmetic** (operand grounding + recompute) and
+**retrieval** (verbatim quote vs. source) — in one certificate schema, one coverage
+denominator, one live verifier, and an **HMAC-signed** portable certificate. Zero
+third-party dependencies. Local models only (Ollama). Expansion path: public-key
+(Ed25519) signatures, runnable-code claims, Lean-checkable math, proof-carrying
+agents that attach a receipt to every step.
