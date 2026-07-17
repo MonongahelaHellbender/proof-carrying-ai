@@ -1,4 +1,4 @@
-"""Proof-carrying agents — a trajectory of steps, each with a signed receipt.
+"""Verified-value trajectory chain — a multi-step agent trajectory, each step with a signed receipt.
 
 An agent takes several steps toward a goal. Each step produces its OWN signed
 certificate. Later steps may use numbers ESTABLISHED by earlier steps — but only

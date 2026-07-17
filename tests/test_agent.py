@@ -1,4 +1,4 @@
-"""Tests for proof-carrying agent trajectories and the cross-step chain check.
+"""Tests for verified-value trajectory chains and the cross-step chain check.
 
 These build the step certificates directly (no model) so the chain logic is
 tested deterministically.

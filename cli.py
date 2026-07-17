@@ -168,7 +168,7 @@ def main() -> None:
     ap.add_argument("--demo", action="store_true", help="arithmetic demo")
     ap.add_argument("--demo-facts", action="store_true", help="retrieval demo")
     ap.add_argument("--demo-mixed", action="store_true", help="mixed arithmetic + retrieval demo")
-    ap.add_argument("--demo-agent", action="store_true", help="proof-carrying agent trajectory demo")
+    ap.add_argument("--demo-agent", action="store_true", help="verified-value trajectory chain demo (multi-step agent)")
     ap.add_argument("--question")
     ap.add_argument("--facts", default="")
     ap.add_argument("--model", default="llama3.2:3b")
