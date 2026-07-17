@@ -139,6 +139,13 @@ ground a number but step 2 uses it anyway, step 2's own certificate can still re
 VERIFIED — yet `verify_trajectory` flags that number as injected and the trajectory
 as not OK.
 
+`--demo-agent` also renders the trajectory into `verify.html`: each step is a panel
+with its receipt, a per-step **chain** chip, and an overall banner. Misquote step 1's
+source in the browser and watch the whole trajectory flip to BROKEN live — step 2's
+own claim stays green (its facts still name `4.2`) while its chain chip goes red,
+because `4.2` was never actually established. That gap is what the chain adds over
+independent receipts.
+
 ## Layout
 
 | File | Role |
@@ -148,16 +155,17 @@ as not OK.
 | `pcai/certificate.py` | builds the certificate, recomputes verdicts, `verify()` re-checks both domains + signature |
 | `pcai/signing.py` | HMAC-SHA256 signing + key management (stdlib) |
 | `pcai/agent.py` | verified-value trajectory chain: signed receipt per step + chain verifier |
-| `pcai/verifier_template.html` | self-contained live verifier (both checkers reimplemented in JS) |
+| `pcai/verifier_template.html` | self-contained live verifier — single certificates AND agent trajectories (both checkers + the chain reimplemented in JS) |
 | `cli.py` | run the loop end to end (`--demo`, `--demo-facts`, `--demo-mixed`, `--demo-agent`, `--verify`, `--no-sign`) |
 | `tests/` | checker (22) + signing (7) + agent (3) tests |
 
 ## Status
 
-v0.5. Two checkable domains — **arithmetic** (operand grounding + recompute) and
+v0.6. Two checkable domains — **arithmetic** (operand grounding + recompute) and
 **retrieval** (verbatim quote vs. source) — in one certificate schema, one coverage
-denominator, one live verifier, an **HMAC-signed** portable certificate, and
-the **verified-value trajectory chain** (a signed receipt per step + a chain verifier for multi-step agents).
-Zero third-party dependencies. Local models only (Ollama). Expansion path: a
-trajectory UI, public-key (Ed25519) signatures, runnable-code claims, Lean-checkable
-math.
+denominator, an **HMAC-signed** portable certificate, the **verified-value trajectory
+chain** (a signed receipt per step + a chain verifier for multi-step agents), and one
+**live verifier that renders both single certificates and trajectories**, recomputing
+verdicts and the chain in the browser. Zero third-party dependencies. Local models
+only (Ollama). Expansion path: public-key (Ed25519) signatures, runnable-code claims,
+Lean-checkable math.

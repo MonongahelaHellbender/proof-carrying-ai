@@ -45,8 +45,11 @@
   .toggle{border:1px solid var(--line);background:var(--panel);color:var(--ink);
     border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px}
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;margin-top:18px}
+  .panel.step{border-left-width:4px;border-left-color:var(--grey)}
+  .panel.step.ok{border-left-color:var(--green)} .panel.step.broken{border-left-color:var(--red)}
   .qa .q{font-weight:600}
   .qa .a{margin-top:6px;color:var(--ink)}
+  .goal{font-weight:600;font-size:16px}
   .facts{font-family:ui-monospace,Menlo,monospace;font-size:13px;color:var(--ink);margin-top:6px}
   .label{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
   .cov{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
@@ -66,6 +69,16 @@
   .stext{font-size:13px;color:var(--ink)}
   .kindtag{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--muted);
     border:1px solid var(--line);border-radius:5px;padding:1px 6px;margin-left:8px}
+  .step-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .step-title{font-weight:700;font-size:15px}
+  .step-chip{margin-left:auto;font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+  .step-chip.ok{color:var(--green);background:var(--green-bg);border-color:var(--green-line)}
+  .step-chip.broken{color:var(--red);background:var(--red-bg);border-color:var(--red-line)}
+  .chain{font-size:13px;color:var(--muted);margin-top:10px;font-family:ui-monospace,Menlo,monospace}
+  .chain.broken{color:var(--red);font-weight:600}
+  .banner{border-radius:12px;padding:14px 18px;margin-top:18px;font-weight:700;border:1px solid var(--line)}
+  .banner.ok{color:var(--green);background:var(--green-bg);border-color:var(--green-line)}
+  .banner.broken{color:var(--red);background:var(--red-bg);border-color:var(--red-line)}
   .claim{border:1px solid var(--line);border-left-width:4px;border-radius:10px;padding:14px 16px;margin-top:12px;background:var(--panel)}
   .claim.v{border-left-color:var(--green)} .claim.f{border-left-color:var(--red)}
   .claim.g{border-left-color:var(--amber)} .claim.u{border-left-color:var(--grey)}
@@ -102,9 +115,9 @@
     <div>
       <h1>Proof-Carrying AI &mdash; Live Verifier</h1>
       <div class="sub">This page recomputes every verdict <b>in your browser</b> — grounded
-        arithmetic <i>and</i> verbatim quotes against their sources — from the raw facts,
-        expressions, and corpus. It does <b>not</b> trust the verdicts stored in the certificate.
-        Edit any field and watch the badges re-check.</div>
+        arithmetic, verbatim quotes, and (for agent trajectories) the cross-step chain — from the
+        raw facts, expressions, corpus, and receipts. It does <b>not</b> trust the verdicts stored
+        in the certificate. Edit any field and watch it re-check.</div>
     </div>
     <button class="toggle" id="themeBtn">Toggle theme</button>
   </header>
@@ -112,13 +125,13 @@
   <div id="app"></div>
 
   <div class="panel">
-    <div class="label">Verify another certificate</div>
-    <div class="note">Paste a certificate JSON and re-check it here. Nothing is trusted; everything is recomputed.</div>
-    <textarea id="paste" placeholder="Paste certificate JSON..."></textarea>
-    <button class="act" id="verifyPaste">Verify pasted certificate</button>
+    <div class="label">Verify another certificate or trajectory</div>
+    <div class="note">Paste a certificate or trajectory JSON and re-check it here. Nothing is trusted; everything is recomputed.</div>
+    <textarea id="paste" placeholder="Paste JSON..."></textarea>
+    <button class="act" id="verifyPaste">Verify pasted JSON</button>
   </div>
 
-  <div class="foot">Proof-Carrying AI v0.4 &middot; deterministic grounded + verbatim checkers, signed receipts, no model in the verdict path</div>
+  <div class="foot">Proof-Carrying AI v0.6 &middot; grounded + verbatim checkers, signed receipts, agent chains &middot; no model in the verdict path</div>
 </div>
 
 <script>
@@ -190,6 +203,10 @@ function numbersMatch(a, b){ return Math.abs(a - b) <= Math.max(1e-9, 1e-6 * Mat
 function member(x, pool){ return pool.some(p => numbersMatch(x, p)); }
 function fmt(x){ return Number.isInteger(x) ? String(x) : (Math.round(x*1e6)/1e6).toString(); }
 function normalize(s){ return String(s || '').replace(/\s+/g, ' ').trim().toLowerCase(); }
+function uniqueFmt(nums){
+  const seen = []; nums.forEach(n => { if(!member(n, seen)) seen.push(n); });
+  return seen.map(fmt).join(', ');
+}
 
 function detailText(verdict, comp, rec, a, ungrounded){
   if(verdict === 'VERIFIED') return comp.trim() + ' = ' + fmt(rec) + '  (operands grounded)';
@@ -240,12 +257,116 @@ function checkQuote(quote, sid, smap){
 }
 
 const CLS = {VERIFIED:'v', FAILED:'f', UNGROUNDED:'g', UNCHECKABLE:'u'};
-let CERT = EMBEDDED_CERT;
+let DATA = EMBEDDED_CERT;
 
-function render(cert){
+function recomputeAll(){
+  if(DATA && DATA.steps) computeTrajectory();
+  else computeCertificate();
+}
+
+// ---- claim cards (shared by certificate and trajectory views) ----
+function claimEl(claim, idx){
+  return claim.kind === 'retrieval' ? claimElQuote(claim, idx) : claimElArithmetic(claim, idx);
+}
+function _shell(claim, idx, kind){
+  const el = E('div', 'claim'); el.dataset.idx = idx; el.dataset.kind = kind;
+  const top = E('div', 'top');
+  const ct = E('div', 'ctext'); ct.append(claim.text || '(claim)', E('span', 'kindtag', kind));
+  top.append(ct, E('div', 'badge', '...'));
+  el.append(top);
+  return el;
+}
+function claimElArithmetic(claim, idx){
+  const el = _shell(claim, idx, 'arithmetic');
+  const row = E('div', 'row');
+  const expr = E('input', 'expr-input'); expr.type = 'text';
+  expr.value = claim.computation || ''; expr.dataset.original = expr.value;
+  const asserted = E('input', 'asserted'); asserted.type = 'text';
+  asserted.value = claim.asserted_value != null ? claim.asserted_value : ''; asserted.dataset.original = asserted.value;
+  row.append(E('span', 'label', 'computation'), expr, E('span', 'label', 'asserted'), asserted);
+  const detail = E('div', 'detail');
+  const grounding = E('div', 'grounding');
+  const disagree = E('div', 'disagree'); disagree.style.display = 'none';
+  const btnRow = E('div', 'row');
+  const breakBtn = E('button', 'ghost', 'force a wrong value');
+  const resetBtn = E('button', 'ghost', 'reset');
+  btnRow.append(breakBtn, resetBtn);
+  el.append(row, detail, grounding, disagree, btnRow);
+  expr.addEventListener('input', recomputeAll);
+  asserted.addEventListener('input', recomputeAll);
+  breakBtn.addEventListener('click', () => {
+    let v = 0; try { v = computeExpr(expr.value).value; } catch(e){}
+    asserted.value = String((typeof v === 'number' ? v : 0) + 1); recomputeAll();
+  });
+  resetBtn.addEventListener('click', () => {
+    expr.value = expr.dataset.original; asserted.value = asserted.dataset.original; recomputeAll();
+  });
+  return el;
+}
+function claimElQuote(claim, idx){
+  const el = _shell(claim, idx, 'retrieval');
+  const row = E('div', 'row');
+  const src = E('input', 'source-input'); src.type = 'text';
+  src.value = claim.source_id || ''; src.dataset.original = src.value;
+  const quote = E('input', 'quote-input'); quote.type = 'text';
+  quote.value = claim.quote || ''; quote.dataset.original = quote.value;
+  row.append(E('span', 'label', 'source'), src, E('span', 'label', 'quote'), quote);
+  const detail = E('div', 'detail');
+  const disagree = E('div', 'disagree'); disagree.style.display = 'none';
+  const btnRow = E('div', 'row');
+  const breakBtn = E('button', 'ghost', 'misquote it');
+  const resetBtn = E('button', 'ghost', 'reset');
+  btnRow.append(breakBtn, resetBtn);
+  el.append(row, detail, disagree, btnRow);
+  src.addEventListener('input', recomputeAll);
+  quote.addEventListener('input', recomputeAll);
+  breakBtn.addEventListener('click', () => { quote.value = quote.value + ' XYZZY'; recomputeAll(); });
+  resetBtn.addEventListener('click', () => {
+    src.value = src.dataset.original; quote.value = quote.dataset.original; recomputeAll();
+  });
+  return el;
+}
+
+// Recompute one claim element against a context (available numbers + source map),
+// updating its DOM. Returns {verdict, establishes:[numbers]} for chaining.
+function recheckClaimEl(el, claim, available, smap){
+  let res, establishes = [];
+  if(el.dataset.kind === 'retrieval'){
+    const quote = el.querySelector('.quote-input').value;
+    res = checkQuote(quote, el.querySelector('.source-input').value, smap);
+    if(res.verdict === 'VERIFIED') establishes = extractNumbers(quote);
+  } else {
+    res = checkOne(el.querySelector('.expr-input').value, el.querySelector('.asserted').value, available);
+    if(res.grounded && typeof res.recomputed === 'number' && isFinite(res.recomputed))
+      available.push(res.recomputed);
+    if(res.verdict === 'VERIFIED'){
+      try { establishes = [computeExpr(el.querySelector('.expr-input').value).value]; } catch(e){}
+    }
+  }
+  applyResult(el, res, claim);
+  return {verdict: res.verdict, establishes};
+}
+
+function applyResult(el, res, claim){
+  const cls = CLS[res.verdict] || 'u';
+  el.className = 'claim ' + cls;
+  const badge = el.querySelector('.badge');
+  badge.className = 'badge ' + cls; badge.textContent = res.verdict;
+  el.querySelector('.detail').textContent = res.detail;
+  const g = el.querySelector('.grounding');
+  if(g) g.textContent = res.grounding || '';
+  const dis = el.querySelector('.disagree');
+  const stored = claim && claim.verdict_at_build;
+  if(stored && stored !== res.verdict){
+    dis.style.display = '';
+    dis.textContent = 'Certificate recorded ' + stored + ' at build, but independent re-check says ' +
+      res.verdict + '. The re-check wins — verdicts are never trusted from the file.';
+  } else { dis.style.display = 'none'; }
+}
+
+// ================= single certificate view =================
+function renderCertificate(cert){
   const app = document.getElementById('app');
-  if(!cert){ app.replaceChildren(E('div', 'panel empty', 'No certificate loaded. Paste one below.')); return; }
-
   const cov = E('div', 'panel');
   const qa = E('div', 'qa');
   qa.append(E('div', 'label', 'Question'), E('div', 'q', cert.question || ''),
@@ -264,156 +385,32 @@ function render(cert){
   cov.append(covHead, covRow, bar, ratio);
 
   const parts = [cov];
-
   if((cert.sources || []).length){
     const sp = E('div', 'panel');
     sp.append(E('div', 'label', 'Sources (the corpus quotes are checked against)'));
-    cert.sources.forEach(s => {
-      const sr = E('div', 'source-row');
-      sr.append(E('span', 'sid', s.id), E('span', 'stext', s.text));
-      sp.append(sr);
-    });
+    cert.sources.forEach(s => { const r = E('div', 'source-row');
+      r.append(E('span', 'sid', s.id), E('span', 'stext', s.text)); sp.append(r); });
     parts.push(sp);
   }
-
   const claims = E('div');
   (cert.claims || []).forEach((c, idx) => claims.append(claimEl(c, idx)));
   parts.push(claims);
-
-  const meta = E('div', 'panel');
-  meta.append(E('div', 'label', 'Honesty note (travels inside the certificate)'),
-              E('div', 'honesty', cert.honesty_note || ''));
-  const mh = E('div', 'label', 'Model & digest'); mh.style.marginTop = '14px';
-  const note = E('div', 'note');
-  note.append('Model: ', E('b', null, cert.model || 'unknown'),
-    ' · the digest binds the certificate body to a hash; it is an integrity check (verified by the Python ',
-    E('code', 'inline', '--verify'), ' tool), not a cryptographic signature.');
-  meta.append(mh, note, E('div', 'digest', cert.digest || '(no digest)'));
-  if(cert.signature){
-    const sh = E('div', 'label', 'Signature'); sh.style.marginTop = '14px';
-    const sn = E('div', 'note');
-    sn.append('Scheme ', E('b', null, cert.signature_scheme || 'hmac-sha256'), ', key ',
-      E('b', null, cert.key_id || '?'),
-      ' — shared-key authenticity. This page recomputes the verdicts; checking the signature itself needs the key and is done by the Python ',
-      E('code', 'inline', '--verify'), ' tool.');
-    meta.append(sh, sn, E('div', 'digest', cert.signature));
-  }
-  parts.push(meta);
-
+  parts.push(metaPanel(cert, 'certificate'));
   app.replaceChildren(...parts);
-  computeAll();
+  computeCertificate();
 }
 
-function claimEl(claim, idx){
-  return claim.kind === 'retrieval' ? claimElQuote(claim, idx) : claimElArithmetic(claim, idx);
-}
-
-function _shell(claim, idx, kind){
-  const el = E('div', 'claim'); el.dataset.idx = idx; el.dataset.kind = kind;
-  const top = E('div', 'top');
-  const ct = E('div', 'ctext'); ct.append(claim.text || '(claim)', E('span', 'kindtag', kind));
-  top.append(ct, E('div', 'badge', '...'));
-  el.append(top);
-  return el;
-}
-
-function claimElArithmetic(claim, idx){
-  const el = _shell(claim, idx, 'arithmetic');
-  const row = E('div', 'row');
-  const expr = E('input', 'expr-input'); expr.type = 'text';
-  expr.value = claim.computation || ''; expr.dataset.original = expr.value;
-  const asserted = E('input', 'asserted'); asserted.type = 'text';
-  asserted.value = claim.asserted_value != null ? claim.asserted_value : ''; asserted.dataset.original = asserted.value;
-  row.append(E('span', 'label', 'computation'), expr, E('span', 'label', 'asserted'), asserted);
-
-  const detail = E('div', 'detail');
-  const grounding = E('div', 'grounding');
-  const disagree = E('div', 'disagree'); disagree.style.display = 'none';
-  const btnRow = E('div', 'row');
-  const breakBtn = E('button', 'ghost', 'force a wrong value');
-  const resetBtn = E('button', 'ghost', 'reset');
-  btnRow.append(breakBtn, resetBtn);
-  el.append(row, detail, grounding, disagree, btnRow);
-
-  expr.addEventListener('input', computeAll);
-  asserted.addEventListener('input', computeAll);
-  breakBtn.addEventListener('click', () => {
-    let v = 0; try { v = computeExpr(expr.value).value; } catch(e){}
-    asserted.value = String((typeof v === 'number' ? v : 0) + 1); computeAll();
-  });
-  resetBtn.addEventListener('click', () => {
-    expr.value = expr.dataset.original; asserted.value = asserted.dataset.original; computeAll();
-  });
-  return el;
-}
-
-function claimElQuote(claim, idx){
-  const el = _shell(claim, idx, 'retrieval');
-  const row = E('div', 'row');
-  const src = E('input', 'source-input'); src.type = 'text';
-  src.value = claim.source_id || ''; src.dataset.original = src.value;
-  const quote = E('input', 'quote-input'); quote.type = 'text';
-  quote.value = claim.quote || ''; quote.dataset.original = quote.value;
-  row.append(E('span', 'label', 'source'), src, E('span', 'label', 'quote'), quote);
-
-  const detail = E('div', 'detail');
-  const disagree = E('div', 'disagree'); disagree.style.display = 'none';
-  const btnRow = E('div', 'row');
-  const breakBtn = E('button', 'ghost', 'misquote it');
-  const resetBtn = E('button', 'ghost', 'reset');
-  btnRow.append(breakBtn, resetBtn);
-  el.append(row, detail, disagree, btnRow);
-
-  src.addEventListener('input', computeAll);
-  quote.addEventListener('input', computeAll);
-  breakBtn.addEventListener('click', () => { quote.value = quote.value + ' XYZZY'; computeAll(); });
-  resetBtn.addEventListener('click', () => {
-    src.value = src.dataset.original; quote.value = quote.dataset.original; computeAll();
-  });
-  return el;
-}
-
-// Re-check the WHOLE certificate in order. Arithmetic threads operand
-// provenance; retrieval checks quotes against the corpus. Both here, live.
-function computeAll(){
-  if(!CERT) return;
-  const available = extractNumbers(CERT.facts || '');
+function computeCertificate(){
+  if(!DATA) return;
+  const available = extractNumbers(DATA.facts || '');
   const smap = {};
-  (CERT.sources || []).forEach(s => { if(s && s.id) smap[String(s.id).trim().toUpperCase()] = s.text || ''; });
+  (DATA.sources || []).forEach(s => { if(s && s.id) smap[String(s.id).trim().toUpperCase()] = s.text || ''; });
   const verdicts = [];
   document.querySelectorAll('.claim').forEach(el => {
-    const idx = Number(el.dataset.idx);
-    const claim = (CERT.claims || [])[idx];
-    let res;
-    if(el.dataset.kind === 'retrieval'){
-      res = checkQuote(el.querySelector('.quote-input').value, el.querySelector('.source-input').value, smap);
-    } else {
-      res = checkOne(el.querySelector('.expr-input').value, el.querySelector('.asserted').value, available);
-      if(res.grounded && typeof res.recomputed === 'number' && isFinite(res.recomputed))
-        available.push(res.recomputed);
-    }
-    applyResult(el, res, claim);
-    verdicts.push(res.verdict);
+    const claim = (DATA.claims || [])[Number(el.dataset.idx)];
+    verdicts.push(recheckClaimEl(el, claim, available, smap).verdict);
   });
   updateCoverage(verdicts);
-}
-
-function applyResult(el, res, claim){
-  const cls = CLS[res.verdict] || 'u';
-  el.className = 'claim ' + cls;
-  const badge = el.querySelector('.badge');
-  badge.className = 'badge ' + cls; badge.textContent = res.verdict;
-  el.querySelector('.detail').textContent = res.detail;
-  const g = el.querySelector('.grounding');
-  if(g) g.textContent = res.grounding || '';
-
-  const dis = el.querySelector('.disagree');
-  const stored = claim && claim.verdict_at_build;
-  if(stored && stored !== res.verdict){
-    dis.style.display = '';
-    dis.textContent = 'Certificate recorded ' + stored + ' at build, but independent re-check says ' +
-      res.verdict + '. The re-check wins — verdicts are never trusted from the file.';
-  } else { dis.style.display = 'none'; }
 }
 
 function updateCoverage(verdicts){
@@ -439,17 +436,144 @@ function updateCoverage(verdicts){
     'coverage_ratio = ' + ratio + '  (' + checkable + ' of ' + total + ' claims were checkable)';
 }
 
+// ================= trajectory view =================
+function renderTrajectory(traj){
+  const app = document.getElementById('app');
+  const head = E('div', 'panel');
+  head.append(E('div', 'label', 'Goal'), E('div', 'goal', traj.goal || ''));
+  if(traj.initial_facts){
+    const fh = E('div', 'label', 'Initial facts'); fh.style.marginTop = '10px';
+    head.append(fh, E('div', 'facts', traj.initial_facts));
+  }
+  const parts = [head];
+
+  if((traj.sources || []).length){
+    const sp = E('div', 'panel');
+    sp.append(E('div', 'label', 'Sources (quotes are checked against)'));
+    traj.sources.forEach(s => { const r = E('div', 'source-row');
+      r.append(E('span', 'sid', s.id), E('span', 'stext', s.text)); sp.append(r); });
+    parts.push(sp);
+  }
+
+  const banner = E('div', 'banner'); banner.id = 'banner'; banner.textContent = '…';
+  parts.push(banner);
+
+  (traj.steps || []).forEach((step, si) => {
+    const panel = E('div', 'panel step');
+    const hd = E('div', 'step-head');
+    hd.append(E('span', 'step-title', 'Step ' + (step.n || si + 1) + ': ' + (step.name || '')),
+              E('span', 'kindtag', step.kind || ''), E('span', 'step-chip', '…'));
+    panel.appendChild(hd);
+    const cert = step.certificate || {};
+    (cert.claims || []).forEach((c, ci) => {
+      const el = claimEl(c, ci);
+      el.dataset.step = si; el.dataset.claim = ci;
+      panel.appendChild(el);
+    });
+    panel.appendChild(E('div', 'chain', ''));
+    parts.push(panel);
+  });
+
+  parts.push(metaPanel(traj, 'trajectory'));
+  app.replaceChildren(...parts);
+  computeTrajectory();
+}
+
+function computeTrajectory(){
+  const traj = DATA;
+  let allowed = extractNumbers(traj.initial_facts || '');
+  let overallOk = true;
+  const panels = document.querySelectorAll('.panel.step');
+
+  (traj.steps || []).forEach((step, si) => {
+    const cert = step.certificate || {};
+    const available = extractNumbers(cert.facts || '');
+    const smap = {};
+    (cert.sources || []).forEach(s => { if(s && s.id) smap[String(s.id).trim().toUpperCase()] = s.text || ''; });
+
+    const establishedThisStep = [];
+    (cert.claims || []).forEach((claim, ci) => {
+      const el = panels[si].querySelector('.claim[data-claim="' + ci + '"]');
+      const r = recheckClaimEl(el, claim, available, smap);
+      r.establishes.forEach(n => establishedThisStep.push(n));
+    });
+
+    // Chain integrity: every number this step treats as a fact must already be allowed.
+    const stepFactNums = extractNumbers(cert.facts || '');
+    const injected = stepFactNums.filter(n => !member(n, allowed));
+    const stepChainOk = injected.length === 0;
+    if(!stepChainOk) overallOk = false;
+
+    const panel = panels[si];
+    panel.className = 'panel step ' + (stepChainOk ? 'ok' : 'broken');
+    const chip = panel.querySelector('.step-chip');
+    chip.className = 'step-chip ' + (stepChainOk ? 'ok' : 'broken');
+    chip.textContent = stepChainOk ? 'chain ok' : 'chain broken';
+    const chain = panel.querySelector('.chain');
+    if(!stepChainOk){
+      chain.className = 'chain broken';
+      chain.textContent = 'BROKEN: this step uses fact(s) no prior verified step established: ' +
+        uniqueFmt(injected);
+    } else {
+      chain.className = 'chain';
+      chain.textContent = establishedThisStep.length
+        ? 'establishes for later steps: ' + uniqueFmt(establishedThisStep)
+        : 'establishes nothing new';
+    }
+
+    establishedThisStep.forEach(n => { if(!member(n, allowed)) allowed.push(n); });
+  });
+
+  const banner = document.getElementById('banner');
+  banner.className = 'banner ' + (overallOk ? 'ok' : 'broken');
+  banner.textContent = overallOk
+    ? 'TRAJECTORY OK — every step is grounded and the chain holds (the signature is checked separately by the Python --verify tool)'
+    : 'TRAJECTORY BROKEN — a step uses a fact that no prior verified step established';
+}
+
+// ---- shared meta / honesty / signature panel ----
+function metaPanel(obj, kind){
+  const meta = E('div', 'panel');
+  if(obj.honesty_note){
+    meta.append(E('div', 'label', 'Honesty note (travels inside the certificate)'),
+                E('div', 'honesty', obj.honesty_note));
+  }
+  const mh = E('div', 'label', kind === 'trajectory' ? 'Model, trajectory digest & signature' : 'Model & digest');
+  mh.style.marginTop = obj.honesty_note ? '14px' : '0';
+  const note = E('div', 'note');
+  note.append('Model: ', E('b', null, obj.model || 'unknown'),
+    ' · this page recomputes verdicts' + (kind === 'trajectory' ? ' and the chain' : '') +
+    '; a signature, when present, is checked by the Python ', E('code', 'inline', '--verify'), ' tool with the key.');
+  meta.append(mh, note);
+  const dg = kind === 'trajectory' ? obj.trajectory_digest : obj.digest;
+  meta.append(E('div', 'digest', dg || '(no digest)'));
+  if(obj.signature){
+    meta.append(E('div', 'note', 'Signature (' + (obj.signature_scheme || 'hmac-sha256') +
+      ', key ' + (obj.key_id || '?') + ') — shared-key authenticity, checked by --verify.'));
+    meta.append(E('div', 'digest', obj.signature));
+  }
+  return meta;
+}
+
+// ---- top-level dispatch ----
+function render(data){
+  const app = document.getElementById('app');
+  if(!data){ app.replaceChildren(E('div', 'panel empty', 'Nothing loaded. Paste a certificate or trajectory below.')); return; }
+  if(data.steps) renderTrajectory(data);
+  else renderCertificate(data);
+}
+
 document.getElementById('themeBtn').addEventListener('click', () => {
   const root = document.documentElement;
   const dark = getComputedStyle(root).getPropertyValue('--bg').trim().startsWith('#0');
   root.setAttribute('data-theme', dark ? 'light' : 'dark');
 });
 document.getElementById('verifyPaste').addEventListener('click', () => {
-  try { CERT = JSON.parse(document.getElementById('paste').value); render(CERT); }
+  try { DATA = JSON.parse(document.getElementById('paste').value); render(DATA); }
   catch(e){ alert('Could not parse JSON: ' + e.message); }
 });
 
-render(CERT);
+render(DATA);
 </script>
 </body>
 </html>

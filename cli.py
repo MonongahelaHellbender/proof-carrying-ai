@@ -135,15 +135,17 @@ def _print_trajectory_report(rep: dict) -> None:
     print(f"TRAJECTORY_OK: {rep['trajectory_ok']}")
 
 
-def run_agent(model, out_traj, key) -> None:
+def run_agent(model, out_traj, out_html, key) -> None:
     print(f"Asking {model} (agent trajectory) ...")
     traj = agent.run(AGENT_GOAL, AGENT_FACTS, AGENT_SOURCES, AGENT_STEPS, model=model, key=key)
     os.makedirs(os.path.dirname(out_traj) or ".", exist_ok=True)
     with open(out_traj, "w", encoding="utf-8") as f:
         json.dump(traj, f, indent=2)
+    render_verifier(traj, out_html)
     _print_trajectory(traj)
     _print_trajectory_report(agent.verify_trajectory(traj, key=key))
     print(f"\ntrajectory -> {out_traj}")
+    print(f"live verifier -> {out_html}")
 
 
 def verify_only(path: str, key) -> None:
@@ -189,7 +191,7 @@ def main() -> None:
         print(f"signing key: {args.key} (key {signing.key_id(key)})")
 
     if args.demo_agent:
-        run_agent(args.model, os.path.join(HERE, "examples", "demo_trajectory.json"), key)
+        run_agent(args.model, os.path.join(HERE, "examples", "demo_trajectory.json"), args.out_html, key)
     elif args.demo_mixed:
         run_mixed(args.model, args.out_cert, args.out_html, key)
     elif args.demo_facts:
