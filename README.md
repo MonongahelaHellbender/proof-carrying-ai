@@ -1,13 +1,38 @@
 # Proof-Carrying AI
 
-An answer that ships a **checkable receipt**. A local LLM answers a question and,
-per numeric claim, states the exact arithmetic behind the number. A deterministic
-checker **recomputes** every claim. A live verifier UI lights each claim
-**green / red / grey** and shows a coverage denominator — how much of the answer
-was checkable at all.
+An answer that ships a **checkable receipt**. A local LLM answers a question and, per
+claim, states the exact evidence behind it — the arithmetic for a number, or a verbatim
+quote for a fact. Deterministic checkers — **no model in the verdict path** — recompute
+every claim. A live verifier lights each claim **green / red / amber / grey** and shows a
+coverage denominator: how much of the answer was checkable at all.
 
-The point: an answer you don't have to take on faith. The verifier never trusts
-the model's self-report; it re-derives every verdict itself.
+The point: an answer you don't have to take on faith. The verifier never trusts the
+model's self-report; it re-derives every verdict itself — in Python, and independently
+in the browser.
+
+> **Status: research prototype.** Local, zero third-party dependencies, honestly scoped.
+> Read **What this is not** before relying on it.
+
+## What this is / is not
+
+**It is** a working loop where a local model's claims are checked by deterministic,
+model-free checkers, bundled into a portable **signed** certificate, and re-verified live
+in the browser — across two domains (arithmetic and retrieval), single answers, and
+multi-step agent trajectories.
+
+**It is not:**
+
+- **Not proof an answer is true about the world.** A VERIFIED claim is grounded to a
+  source or a computation, not to reality. A correct computation on the wrong operands, or
+  a real quote that does not support its point, can still verify.
+- **Not a semantic checker.** It confirms a quote is present and arithmetic is right — not
+  that the evidence actually supports the claim's meaning. That would need a model, which
+  would break the model-free guarantee.
+- **Not public-key signed.** The HMAC signature is shared-key authenticity: the verifier
+  needs the same secret, and anyone holding it can forge. Public, anyone-can-verify signing
+  (Ed25519) is future work.
+- **Not a general agent framework.** The trajectory demo is a scaffold that demonstrates the
+  chain property, not a production planner.
 
 ## The loop
 
@@ -15,7 +40,7 @@ the model's self-report; it re-derives every verdict itself.
 flowchart LR
     Q[Question + Facts] --> M[Local LLM<br/>llama3.2:3b]
     M -->|answer + per-claim<br/>computation & value| P[Parse claims]
-    P --> C[Deterministic checker<br/>ground operands + recompute arithmetic]
+    P --> C[Deterministic checkers<br/>ground + recompute / verbatim quote]
     C --> CERT[Certificate JSON<br/>+ sha256 digest]
     CERT --> V[Live verifier<br/>re-checks in browser]
     V --> G[green VERIFIED]
@@ -30,6 +55,9 @@ The model is the **only** place a model is involved. It *proposes* claims; the
 checker *disposes*. No model output sits in the verdict path.
 
 ## Run it
+
+Requires Python 3 and a local [Ollama](https://ollama.com) with `llama3.2:3b`
+(`ollama pull llama3.2:3b`). No API keys, no cloud, no third-party Python packages.
 
 ```
 python3 cli.py --demo          # arithmetic domain (Q1 costs)
@@ -158,6 +186,20 @@ independent receipts.
 | `pcai/verifier_template.html` | self-contained live verifier — single certificates AND agent trajectories (both checkers + the chain reimplemented in JS) |
 | `cli.py` | run the loop end to end (`--demo`, `--demo-facts`, `--demo-mixed`, `--demo-agent`, `--verify`, `--no-sign`) |
 | `tests/` | checker (22) + signing (7) + agent (3) tests |
+
+## Limitations (all deliberate and named)
+
+- **Grounded, not true.** Verdicts bind claims to sources and computations, not to reality.
+- **Verbatim modulo whitespace and case.** A faithful paraphrase is not a verbatim quote and reads as FAILED.
+- **Ambient constants flag as ungrounded.** A number not in the facts and not derived (e.g. `100` for a percent, `12` for months) is flagged on purpose — unknown provenance is surfaced, not assumed.
+- **Provenance is single-pass, in emitted order.** A claim that references a later claim's result is not grounded by it.
+- **Shared-key signatures.** HMAC proves a holder of the key made the certificate; it is not public-verifiable.
+- **The browser checks content, not signatures.** Signature verification needs the key and is a `--verify` (terminal) operation.
+- **Coverage tracks the model.** A flakier model yields more UNCHECKABLE / UNGROUNDED claims; the receipt reflects that honestly rather than hiding it.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
 
 ## Status
 
