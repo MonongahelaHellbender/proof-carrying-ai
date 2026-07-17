@@ -112,7 +112,13 @@ Honest scope: this is **shared-key** authenticity — the verifier needs the sam
 and anyone holding it can forge. It is **not** public, anyone-can-verify signing;
 that needs a crypto dependency or a from-scratch Ed25519, on the expansion path.
 
-## Proof-carrying agents
+## Proof-carrying agents (verified-value trajectory chain)
+
+> **Naming note (see `RELATED_WORK.md`):** "Proof-Carrying Agent Actions" (PCAA, arXiv 2606.04104,
+> June 2026) predates this feature's name in the agent niche and is a DIFFERENT mechanism — PCAA
+> certifies that an action was routed/reviewed/APPROVED (governance), while this feature certifies
+> that a step's CONTENT is grounded and its numbers trace to verified prior steps (correctness).
+> Complementary layers; the phrase "proof-carrying agents" is not claimed as coined here.
 
 An agent takes several steps toward a goal; **each step emits its own signed
 certificate**, and later steps may use only numbers an earlier VERIFIED step
