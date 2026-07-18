@@ -4,6 +4,11 @@
 deliberately NOT a systematic prior-art survey of verification, attribution, or provenance, and
 should not be read as one.
 
+**And a scope note limits what was surveyed — it does not license a claim inside the unsurveyed
+area.** An earlier version of this file disclaimed being a survey and then made a novelty claim at
+the end, which is precisely the gap a claim can hide in. That claim has been withdrawn; see the
+final section.
+
 **Verification levels differ by section, on purpose:**
 
 - The **PCAA / CAVA** sections were verified against those papers' full texts on 2026-07-17 (not
@@ -102,8 +107,36 @@ as novel here.** Each is named so the composition can be judged on what it actua
    only as trustworthy as what it was derived from. The trajectory chain here is that discipline
    applied to values a language model produced.
 
-**What this repo composes, stated so it can be attacked:** deterministic recomputation (1), verbatim
-source grounding (2), and value lineage (3) — carried together in one signed certificate, re-derived
-by a verifier with no model in its verdict path, and reported against a published coverage
-denominator. Every ingredient is prior art. The claim is the composition, and specifically enforcing
-lineage over model-generated values with a model-free checker.
+**What this repo composes:** deterministic recomputation (1), verbatim source grounding (2), and
+value lineage (3) — carried together in one signed certificate, re-derived by a verifier with no
+model in its verdict path, and reported against a published coverage denominator. Every ingredient
+is prior art.
+
+## The composition is not novel either — claim withdrawn (2026-07-18)
+
+An earlier version of this section claimed the contribution was *the composition, and specifically
+enforcing lineage over model-generated values with a model-free checker.* A problem-shaped search
+on 2026-07-18 — searching by the failure mode rather than by systems that resemble this one —
+retired that claim. Both of these predate it and were read in full text:
+
+- **Evidence-Grounded Verified Agentic Reasoning** (arXiv 2607.12650, Jul 2026) enforces exactly
+  this mechanism and *proves* it: "every Verified output must descend from an attested tool call
+  (Theorem 3.1)", with "Lean type-checks every proof step. The kernel is the only entity authorized
+  to mint Evidence Verified", and the model explicitly outside the verdict path — "The solver is
+  type-checked, not trusted: an arbitrarily wrong solver can never produce a verified-but-unsupported
+  output". A strictly stronger mechanism than this repo's.
+- **Structured Abductive-Deductive-Inductive Reasoning via Algebraic Invariants** (arXiv 2604.15727,
+  Apr 2026) enforces non-propagation algebraically: unverified claims sit at layer L0 and cannot
+  propagate as established knowledge, under a Weakest Link invariant — "no inference chain can be
+  more reliable than its least reliable premise" (Gödel t-norm, Theorem 1). Its **Transformer
+  Mandate**, "the entity that finalizes a decision must be external to the generation loop", is the
+  no-model-in-the-verdict-path principle, named.
+
+**So: nothing here is novel, including the composition.** What this repo offers is engineering and
+pedagogy — zero dependencies and no toolchain (EG-VAR requires Lean), a cryptographically signed
+portable certificate (EG-VAR's replay artifact is unsigned), a deliberately weaker verbatim-only
+retrieval check that cannot itself hallucinate, and a browser verifier that re-derives every verdict
+in front of the reader. Those are **properties, not contributions**, and are described as such.
+
+The lesson, recorded because it generalises: a claim that survives only as a *conjunction* of
+individually-owned parts is not a claim. This one was withdrawn rather than narrowed a third time.
