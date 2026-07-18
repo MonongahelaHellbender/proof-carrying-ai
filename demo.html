@@ -397,7 +397,10 @@ function renderCertificate(cert){
   const bar = E('div', 'bar'); bar.id = 'bar';
   bar.append(E('i', 'bv'), E('i', 'bf'), E('i', 'bg'), E('i', 'bu'));
   const ratio = E('div', 'ratio'); ratio.id = 'ratio';
-  cov.append(covHead, covRow, bar, ratio);
+  const covNote = E('div', 'note',
+    'Counts the claims the model emitted. An assertion made only in the answer text is not counted here — ' +
+    'coverage is a floor on what was examined, not a score for the answer.');
+  cov.append(covHead, covRow, bar, ratio, covNote);
 
   const parts = [cov];
   if((cert.sources || []).length){
