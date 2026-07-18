@@ -197,9 +197,12 @@ function parseAsserted(text){
   return Number.isNaN(n) ? null : n;
 }
 function extractNumbers(text){
-  const re = /(?<![\w.])\d[\d,]*(?:\.\d+)?/g;
+  // Deliberately NO lookbehind: Safari before 16.4 throws on (?<!...) at parse time,
+  // which would kill this whole script. Same semantics via a capture group — an optional
+  // preceding non-word/non-dot char — so "Q1" does not yield 1 and "3.5" is not split.
+  const re = /(^|[^\w.])(\d[\d,]*(?:\.\d+)?)/g;
   const out = []; const s = String(text || '');
-  for(const m of s.matchAll(re)){ const v = parseAsserted(m[0]); if(v !== null) out.push(v); }
+  for(const m of s.matchAll(re)){ const v = parseAsserted(m[2]); if(v !== null) out.push(v); }
   return out;
 }
 function numbersMatch(a, b){ return Math.abs(a - b) <= Math.max(1e-9, 1e-6 * Math.max(Math.abs(a), Math.abs(b))); }
