@@ -1,0 +1,149 @@
+{
+  "trajectory_version": "0.1",
+  "created_utc": "2026-07-17T19:55:48+00:00",
+  "model": "llama3.2:3b",
+  "goal": "Estimate Acme's annualized revenue run-rate from Q1.",
+  "initial_facts": "A year has 4 quarters.",
+  "sources": [
+    {
+      "id": "S1",
+      "text": "Acme Corp reported Q1 revenue of $4.2 million, up 12% from the prior quarter. The company added 30 new enterprise customers."
+    }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "name": "retrieve Q1 revenue",
+      "kind": "retrieve",
+      "instruction": "What was Acme's Q1 revenue? Quote the exact figure from the sources.",
+      "certificate": {
+        "certificate_version": "0.4",
+        "created_utc": "2026-07-17T19:55:46+00:00",
+        "model": "llama3.2:3b",
+        "question": "What was Acme's Q1 revenue? Quote the exact figure from the sources.",
+        "facts": "",
+        "fact_values": [],
+        "sources": [
+          {
+            "id": "S1",
+            "text": "Acme Corp reported Q1 revenue of $4.2 million, up 12% from the prior quarter. The company added 30 new enterprise customers."
+          }
+        ],
+        "answer": "Acme's Q1 revenue was $4.2 million.",
+        "claims": [
+          {
+            "id": "c1",
+            "text": "Acme Corp reported Q1 revenue of $4.2 million, up 12% from the prior quarter.",
+            "kind": "retrieval",
+            "verdict_at_build": "VERIFIED",
+            "detail": "quote found verbatim in source S1",
+            "quote": "Acme Corp reported Q1 revenue of $4.2 million, up 12% from the prior quarter.",
+            "source_id": "S1",
+            "checker_id": "retrieval-verbatim-v1",
+            "found": true
+          }
+        ],
+        "coverage": {
+          "total_claims": 1,
+          "checkable": 1,
+          "verified": 1,
+          "failed": 0,
+          "ungrounded": 0,
+          "uncheckable": 0,
+          "coverage_ratio": 1.0
+        },
+        "honesty_note": "Verdicts are grounded, not proof of truth about the world. For arithmetic (CLAIM) claims, VERIFIED means every operand traces to a fact or a prior derived value AND the asserted number equals the recompute. For retrieval (FACT) claims, VERIFIED means the quoted text appears verbatim (whitespace- and case-normalized) in the cited source \u2014 it grounds the quote to the source, not the source to reality. UNGROUNDED means an invented operand or an invented source id. FAILED means the checkable assertion is false (wrong arithmetic, or a quote not in the source). UNCHECKABLE claims are counted, never hidden. coverage_ratio = checkable / total. A signature, when present, is HMAC-SHA256: it proves the certificate was made by a holder of the signing key (shared-key authenticity, verified with that key), NOT a public signature anyone can check without the secret.",
+        "digest": "sha256:02037311b135f1322ca04c87d23cb569b4c70185714cad37283c3304ab8e6150",
+        "signature_scheme": "hmac-sha256",
+        "key_id": "0ed50942",
+        "signature": "hmac-sha256:6eef86a94bd1e7935abdbeb5632cc32272ff8488b5d13c68b2551ee9e547adef"
+      },
+      "establishes": [
+        4.2,
+        12.0
+      ]
+    },
+    {
+      "n": 2,
+      "name": "annualize",
+      "kind": "compute",
+      "instruction": "Compute the annualized revenue: multiply the Q1 revenue in millions by the 4 quarters in a year. Put only numbers in the expression.",
+      "certificate": {
+        "certificate_version": "0.4",
+        "created_utc": "2026-07-17T19:55:48+00:00",
+        "model": "llama3.2:3b",
+        "question": "Compute the annualized revenue: multiply the Q1 revenue in millions by the 4 quarters in a year. Put only numbers in the expression.",
+        "facts": "A year has 4 quarters. Q1 revenue in millions = 4.2.",
+        "fact_values": [
+          4.0,
+          4.2
+        ],
+        "sources": [],
+        "answer": "The annualized revenue is the result of multiplying the Q1 revenue by the number of quarters in a year.",
+        "claims": [
+          {
+            "id": "c1",
+            "text": "Annualized Revenue",
+            "kind": "arithmetic",
+            "verdict_at_build": "VERIFIED",
+            "detail": "4.2 * 4 = 16.8  (operands grounded)",
+            "computation": "4.2 * 4",
+            "asserted_value": "16.8",
+            "operands": [
+              4.2,
+              4.0
+            ],
+            "checker_id": "arith-grounded-v1",
+            "grounded": true,
+            "ungrounded_operands": [],
+            "arithmetic": "MATCH",
+            "recomputed_value": 16.8,
+            "grounding_detail": "operands 4.2, 4 \u2014 all trace to a fact or a prior result"
+          },
+          {
+            "id": "c2",
+            "text": "Total Revenue for Year",
+            "kind": "arithmetic",
+            "verdict_at_build": "UNGROUNDED",
+            "detail": "operand(s) not in facts or prior results: 1   [16.8 * 1 = 16.8]",
+            "computation": "16.8 * 1",
+            "asserted_value": "16.8",
+            "operands": [
+              16.8,
+              1.0
+            ],
+            "checker_id": "arith-grounded-v1",
+            "grounded": false,
+            "ungrounded_operands": [
+              1.0
+            ],
+            "arithmetic": "MATCH",
+            "recomputed_value": 16.8,
+            "grounding_detail": "operands 16.8, 1; ungrounded: 1"
+          }
+        ],
+        "coverage": {
+          "total_claims": 2,
+          "checkable": 2,
+          "verified": 1,
+          "failed": 0,
+          "ungrounded": 1,
+          "uncheckable": 0,
+          "coverage_ratio": 1.0
+        },
+        "honesty_note": "Verdicts are grounded, not proof of truth about the world. For arithmetic (CLAIM) claims, VERIFIED means every operand traces to a fact or a prior derived value AND the asserted number equals the recompute. For retrieval (FACT) claims, VERIFIED means the quoted text appears verbatim (whitespace- and case-normalized) in the cited source \u2014 it grounds the quote to the source, not the source to reality. UNGROUNDED means an invented operand or an invented source id. FAILED means the checkable assertion is false (wrong arithmetic, or a quote not in the source). UNCHECKABLE claims are counted, never hidden. coverage_ratio = checkable / total. A signature, when present, is HMAC-SHA256: it proves the certificate was made by a holder of the signing key (shared-key authenticity, verified with that key), NOT a public signature anyone can check without the secret.",
+        "digest": "sha256:7c2af649294f937fe19b7dfc47b8773c56cd654df5b2c709c0091a5ccc9c71b4",
+        "signature_scheme": "hmac-sha256",
+        "key_id": "0ed50942",
+        "signature": "hmac-sha256:270ff1d6159efcd2bc20ebf3f92da05bb013571bea1c07fff783416d3ee75813"
+      },
+      "establishes": [
+        16.8
+      ]
+    }
+  ],
+  "trajectory_digest": "sha256:3a7f367be1ef2544cb255703acc2e44348ea273719bb2dc48607f8c0511fb954",
+  "signature_scheme": "hmac-sha256",
+  "key_id": "0ed50942",
+  "signature": "hmac-sha256:e5363e5ec50077ebd99440a4cfdfc5fb0055c26152a147d1a383b1f210754701"
+}

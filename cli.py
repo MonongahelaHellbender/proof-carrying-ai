@@ -150,7 +150,11 @@ def run_agent(model, out_traj, out_html, key) -> None:
 
 def verify_only(path: str, key) -> None:
     with open(path, encoding="utf-8") as f:
-        cert = json.load(f)
+        data = json.load(f)
+    if data.get("steps"):                       # a trajectory, not a single certificate
+        _print_trajectory_report(agent.verify_trajectory(data, key=key))
+        return
+    cert = data
     report = certificate.verify(cert, key=key)
     print(f"digest_ok: {report['digest_ok']}")
     print(f"signature: {report['signature_status']}"

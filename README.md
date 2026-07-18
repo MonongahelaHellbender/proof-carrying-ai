@@ -34,6 +34,33 @@ multi-step agent trajectories.
 - **Not a general agent framework.** The trajectory demo is a scaffold that demonstrates the
   chain property, not a production planner.
 
+## Try it with no install
+
+Open **[demo.html](demo.html)** in any browser. No Ollama, no Python, no build step — the
+page recomputes every verdict and the entire agent chain locally in your browser.
+
+Two real examples are embedded, both produced by the pipeline in this repo:
+
+- **Agent trajectory** — retrieve a figure from a source, then compute with it. Press
+  *misquote it* on step 1 and watch the whole trajectory flip to BROKEN: step 2's own claim
+  stays green while its chain chip goes red, because the number it used was never actually
+  established. That gap is the thing per-step checking cannot see.
+- **Single certificate** — one answer spanning both domains, showing all four verdicts.
+
+The samples are signed with the **public demo key** in `examples/demo_signing.key`. That key
+has zero security value; it is published so you can run the verifier yourself:
+
+```
+python3 cli.py --verify examples/sample_trajectory.json --key examples/demo_signing.key
+python3 cli.py --verify examples/sample_certificate.json --key examples/demo_signing.key
+```
+
+Publishing that key also makes the shared-key limitation concrete: to let you verify, the key
+had to be shared — and anyone holding it can now forge. That is precisely why HMAC is
+authenticity *within a trust domain* and not a public signature.
+
+Rebuild the demo after regenerating artifacts: `python3 tools/build_demo.py`.
+
 ## The loop
 
 ```mermaid
@@ -185,6 +212,9 @@ independent receipts.
 | `pcai/agent.py` | verified-value trajectory chain: signed receipt per step + chain verifier |
 | `pcai/verifier_template.html` | self-contained live verifier — single certificates AND agent trajectories (both checkers + the chain reimplemented in JS) |
 | `cli.py` | run the loop end to end (`--demo`, `--demo-facts`, `--demo-mixed`, `--demo-agent`, `--verify`, `--no-sign`) |
+| `tools/build_demo.py` | builds `demo.html` — re-signs artifacts with the public demo key and embeds them |
+| `demo.html` | prebuilt no-install demo (committed; open it in any browser) |
+| `examples/sample_*.json` | committed sample certificate + trajectory, signed with the public demo key |
 | `tests/` | checker (22) + signing (7) + agent (3) tests |
 
 ## Limitations (all deliberate and named)
