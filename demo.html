@@ -108,6 +108,15 @@
   code.inline{font-family:ui-monospace,Menlo,monospace;background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:1px 5px}
   .foot{color:var(--muted);font-size:12px;margin-top:26px;text-align:center}
   .empty{color:var(--muted);font-style:italic}
+  /* Touch and small screens. The core interaction here is tapping a button, so give
+     every control a real tap target (44px), and keep inputs at 16px because iOS Safari
+     auto-zooms the page when a focused input is smaller than that. */
+  @media (max-width:560px), (pointer:coarse){
+    button.ghost{padding:10px 14px;font-size:13px;min-height:44px}
+    button.act,.toggle{min-height:44px;padding:10px 16px}
+    input.expr-input,input.asserted,input.quote-input,input.source-input{min-height:44px;font-size:16px}
+    input.expr-input,input.quote-input{width:100%}
+  }
 </style>
 </head>
 <body>
