@@ -10,6 +10,9 @@ The point: an answer you don't have to take on faith. The verifier never trusts 
 model's self-report; it re-derives every verdict itself — in Python, and independently
 in the browser.
 
+**▶ [Open the live demo](https://monongahelahellbender.github.io/proof-carrying-ai/demo.html)** —
+nothing to install. Misquote a source and watch a verified agent chain break in front of you.
+
 > **Status: research prototype.** Local, zero third-party dependencies, honestly scoped.
 > Read **What this is not** before relying on it.
 
@@ -36,8 +39,10 @@ multi-step agent trajectories.
 
 ## Try it with no install
 
-Open **[demo.html](demo.html)** in any browser. No Ollama, no Python, no build step — the
-page recomputes every verdict and the entire agent chain locally in your browser.
+**[Open the live demo](https://monongahelahellbender.github.io/proof-carrying-ai/demo.html)** — or
+open [demo.html](demo.html) from a clone; it is the same self-contained file. No Ollama, no Python,
+no build step, and no server: the page recomputes every verdict and the entire agent chain locally
+in your browser.
 
 Two real examples are embedded, both produced by the pipeline in this repo:
 
