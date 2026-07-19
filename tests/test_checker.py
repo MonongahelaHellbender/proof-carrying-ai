@@ -181,6 +181,38 @@ def test_mixed_arithmetic_and_retrieval_in_one_pass():
     assert v[1].kind == "retrieval" and v[1].verdict == c.VERIFIED
 
 
+# ---- answer coverage: numbers stated in prose with no receipt ----
+
+def test_answer_coverage_flags_numbers_with_no_receipt():
+    # The answer states 45300 and 15000; the only claim asserts 46700. Both unbacked.
+    v = c.check_claims([_RC("total", "42000 + 3500 + 1200", "46700")], FACTS)
+    ac = c.answer_coverage("The total is $45300 and the monthly average is $15000.", v, FACTS)
+    assert ac["answer_numbers"] == 2
+    assert ac["backed"] == 0
+    assert 45300.0 in ac["unbacked"] and 15000.0 in ac["unbacked"]
+
+
+def test_answer_coverage_accepts_claim_quote_and_fact_backing():
+    claims = [
+        _RC("total", "42000 + 3500 + 1200", "46700"),
+        RawClaim(kind="retrieval", text="rev", source_id="S1", quote="Q1 revenue of $4.2 million"),
+    ]
+    v = c.check_claims(claims, FACTS, SRC)
+    # 46700 is a claim's asserted value, 3 is given in FACTS, 4.2 sits in a VERIFIED quote
+    ac = c.answer_coverage("Total 46700 over 3 months; revenue 4.2 million.", v, FACTS)
+    assert ac["unbacked"] == []
+    assert ac["backed_ratio"] == 1.0
+
+
+def test_answer_coverage_ignores_unverified_quote_as_backing():
+    # A misquoted (FAILED) retrieval claim must not launder a number into "backed".
+    claims = [RawClaim(kind="retrieval", text="rev", source_id="S1",
+                       quote="Q1 revenue of $9.9 billion")]
+    v = c.check_claims(claims, "", SRC)
+    ac = c.answer_coverage("Revenue was 9.9 billion.", v, "")
+    assert ac["unbacked"] == [9.9]
+
+
 if __name__ == "__main__":
     passed = 0
     for name, fn in sorted(globals().items()):

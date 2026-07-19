@@ -362,3 +362,36 @@ def coverage(verdicts: list[str]) -> dict:
         "uncheckable": uncheckable,
         "coverage_ratio": round(checkable / total, 4) if total else 0.0,
     }
+
+
+def answer_coverage(answer: str, verdicts, facts: str = "") -> dict:
+    """The OTHER direction: how much of the answer TEXT carries any receipt at all.
+
+    coverage_ratio measures the claims the model chose to emit. It says nothing about
+    an assertion the model made only in prose — such a number is not UNCHECKABLE, it is
+    simply uncounted. This measures that gap directly: every number appearing in the
+    answer that is not backed by a claim, a verified quote, or a given fact.
+
+    A number counts as backed if it is some claim's asserted value (whatever that claim's
+    verdict), appears in a VERIFIED quote, or was given in the facts — i.e. the model did
+    not conjure it in prose. Deterministic and model-free like everything else here: it
+    compares numbers, not meanings, so it is a floor on the gap, not a semantic audit.
+    """
+    answer_nums = extract_numbers(answer)
+    backing = list(extract_numbers(facts))
+    for cv in verdicts:
+        if cv.kind == "retrieval":
+            if cv.verdict == VERIFIED:
+                backing.extend(extract_numbers(cv.quote))
+        else:
+            asserted = parse_number(cv.asserted_value)
+            if asserted is not None:
+                backing.append(asserted)
+    unbacked = [n for n in answer_nums if not _member(n, backing)]
+    total = len(answer_nums)
+    return {
+        "answer_numbers": total,
+        "backed": total - len(unbacked),
+        "unbacked": unbacked,
+        "backed_ratio": round((total - len(unbacked)) / total, 4) if total else 1.0,
+    }

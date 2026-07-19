@@ -400,7 +400,8 @@ function renderCertificate(cert){
   const covNote = E('div', 'note',
     'Counts the claims the model emitted. An assertion made only in the answer text is not counted here — ' +
     'coverage is a floor on what was examined, not a score for the answer.');
-  cov.append(covHead, covRow, bar, ratio, covNote);
+  const anscov = E('div', 'note'); anscov.id = 'anscov'; anscov.style.marginTop = '8px';
+  cov.append(covHead, covRow, bar, ratio, covNote, anscov);
 
   const parts = [cov];
   if((cert.sources || []).length){
@@ -424,11 +425,43 @@ function computeCertificate(){
   const smap = {};
   (DATA.sources || []).forEach(s => { if(s && s.id) smap[String(s.id).trim().toUpperCase()] = s.text || ''; });
   const verdicts = [];
+  const backing = extractNumbers(DATA.facts || '');
   document.querySelectorAll('.claim').forEach(el => {
     const claim = (DATA.claims || [])[Number(el.dataset.idx)];
-    verdicts.push(recheckClaimEl(el, claim, available, smap).verdict);
+    const r = recheckClaimEl(el, claim, available, smap);
+    verdicts.push(r.verdict);
+    // A number is "backed" if some claim asserts it, a VERIFIED quote contains it,
+    // or the facts gave it — i.e. the model did not conjure it in prose.
+    if(el.dataset.kind === 'retrieval'){
+      if(r.verdict === 'VERIFIED')
+        extractNumbers(el.querySelector('.quote-input').value).forEach(n => backing.push(n));
+    } else {
+      const a = parseAsserted(el.querySelector('.asserted').value);
+      if(a !== null) backing.push(a);
+    }
   });
   updateCoverage(verdicts);
+  updateAnswerCoverage(backing);
+}
+
+// The other direction: numbers the ANSWER states that carry no receipt at all.
+// Recomputed here rather than read from the certificate, like every other verdict.
+function updateAnswerCoverage(backing){
+  const el = document.getElementById('anscov');
+  if(!el) return;
+  const nums = extractNumbers((DATA && DATA.answer) || '');
+  if(!nums.length){ el.className = 'note'; el.textContent = 'The answer text states no numbers.'; return; }
+  const unbacked = nums.filter(n => !member(n, backing));
+  if(!unbacked.length){
+    el.className = 'note';
+    el.textContent = 'Answer text: all ' + nums.length +
+      ' number(s) the answer states are backed by a claim, a verified quote, or a given fact.';
+  } else {
+    el.className = 'disagree';
+    el.textContent = 'Answer text: ' + unbacked.length + ' of ' + nums.length +
+      ' number(s) the answer states carry NO receipt — ' + uniqueFmt(unbacked) +
+      ' — not asserted by any claim, not in a verified quote, not a given fact.';
+  }
 }
 
 function updateCoverage(verdicts){

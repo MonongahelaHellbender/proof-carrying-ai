@@ -38,7 +38,9 @@ HONESTY_NOTE = (
     "grounds the quote to the source, not the source to reality. UNGROUNDED means an invented "
     "operand or an invented source id. FAILED means the checkable assertion is false (wrong "
     "arithmetic, or a quote not in the source). UNCHECKABLE claims are counted, never hidden. "
-    "coverage_ratio = checkable / total. A signature, when present, is HMAC-SHA256: it proves "
+    "coverage_ratio = checkable / total, over the claims the model EMITTED; answer_coverage "
+    "separately counts numbers the answer states that carry no receipt at all. A signature, when "
+    "present, is HMAC-SHA256: it proves "
     "the certificate was made by a holder of the signing key (shared-key authenticity, verified "
     "with that key), NOT a public signature anyone can check without the secret."
 )
@@ -103,6 +105,7 @@ def build(question, facts, model_output, model, sources=None, key=None) -> dict:
         "answer": model_output.answer,
         "claims": claims,
         "coverage": checker.coverage([cv.verdict for cv in verdicts]),
+        "answer_coverage": checker.answer_coverage(model_output.answer, verdicts, facts),
         "honesty_note": HONESTY_NOTE,
     }
     body["digest"] = _digest(body)
@@ -161,6 +164,8 @@ def verify(cert: dict, key=None) -> dict:
     return {
         "claims": fresh,
         "coverage": checker.coverage([cv.verdict for cv in verdicts]),
+        "answer_coverage": checker.answer_coverage(
+            cert.get("answer", ""), verdicts, cert.get("facts", "")),
         "digest_ok": digest_ok,
         "stored_digest": stored_digest,
         "signature_status": signature_status,
